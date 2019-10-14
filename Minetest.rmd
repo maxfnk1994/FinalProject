@@ -1,0 +1,465 @@
+---
+title: "Final Project: Minecraft: Containers vs. VM | Authors: Liao, Athena; Sharma, Nikki; Franke, Maximilian"
+output: html_notebook
+---
+# Clean workspace
+```{r}
+# Clean workspace
+rm(list = ls())
+```
+# Install packages
+```{r}
+#install.packages("ggplot2")
+#install.packages("grid")
+#install.packages("dplyr")
+#install.packages("xtable")
+#install.packages("corrgram")
+#install.packages("corrplot")
+#install.packages("devtools")
+#install.packages("broom")
+```
+# Load packages
+```{r}
+library(ggplot2)
+library(grid)
+library(dplyr)
+library(xtable)
+library(corrgram)
+library(corrplot)
+#library(readr) 
+#library(tidyverse,warn.conflicts = FALSE)
+#library(RColorBrewer)
+#library(plotly)
+options(warn=-1,message=-1)
+#library(rcompanion)
+library(devtools)
+library(broom)
+```
+# Preparation
+```{r}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+ggplotRegression <- function (fit) {
+    
+    require(ggplot2)
+    
+    ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+        geom_point() +
+        stat_smooth(method = "lm", col = "red") +
+        labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
+                           "Intercept =",signif(fit$coef[[1]],5 ),
+                           " Slope =",signif(fit$coef[[2]], 5),
+                           " P =",signif(summary(fit)$coef[2,4], 5)))
+}
+```
+# Set working directory
+```{r}
+# set your personal working directory concerning the files
+setwd("~/Desktop/05_Big Data Analytics/CIS-541 Fundament. Big Data/06_Final_Project/Data/Final Data")
+```
+# Load data
+```{r}
+serverdata <- read.csv("Native.csv", stringsAsFactors = F)
+serverdocker <- read.csv("NContainer.csv", stringsAsFactors = F)
+VMdata <- read.csv("VM.csv", stringsAsFactors = F)
+VMDocker <- read.csv("VMDocker_0910.csv", stringsAsFactors = F)
+```
+# Bind the df to one df
+```{r}
+serverdata$case <- "Native"
+serverdocker$case <- "Container"
+VMdata$case <- "VirtualMachine"
+VMDocker$case <-"VM Docker"
+# Change column name to bind the datasets
+names(serverdata)[names(serverdata) == "Clients"] <- "Client"
+names(VMDocker)[names(VMDocker) == "Clients"] <- "Client"
+names(VMdata)[names(VMdata) == "Clients"] <- "Client"
+names(serverdocker)[names(serverdocker) == "Clients"] <- "Client"
+
+df <- rbind(serverdata, serverdocker, VMdata,VMDocker)
+```
+# Usage of CPU and Memory in the 3 cases
+```{r}
+p1 <- df %>% ggplot(aes(factor(case), HostCPU.)) + geom_col(aes(fill=case)) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
+  labs(x = "Case", y = "Host CPU usage", title = "Usage of CPU in 4 cases") 
+
+p2 <- df %>% ggplot(aes(factor(case), HostMem.)) + geom_col(aes(fill=case)) + 
+  labs(x = "Case", y = "Host Memory usage", title = "Usage of Memory in 4 cases") +theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+theme(legend.position="none")
+
+layout <- matrix(c(1,1,1,2,2),1,5,byrow=TRUE)
+multiplot(p1, p2, layout=layout)
+```
+
+# Plot the received & sent Bytes & Packets
+```{r}
+p1 <- df %>% ggplot(aes(factor(case), Bytes_Sent/10000)) + geom_col(aes(fill=case)) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Case", y = "Bytes Sent")
+
+p2 <- df %>% ggplot(aes(factor(case), Bytes_Recv/10000)) + geom_col(aes(fill=case)) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Case", y = "Bytes Received") +
+  theme(legend.position="none")
+
+p3 <- df %>% ggplot(aes(factor(case), Packets_Sent/10000)) + geom_col(aes(fill=case)) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Case", y = "Packets Sent")
+
+p4 <- df %>% ggplot(aes(factor(case), Packets_Recv/10000)) + geom_col(aes(fill=case)) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  labs(x = "Case", y = "Packets Received") +
+  theme(legend.position="none")
+
+layout <- matrix(c(1,1,1,2,2,3,3,3,4,4),2,5,byrow=TRUE)
+multiplot(p1, p2, p3, p4, layout=layout)
+```
+# Plot development of HostCPU concerning Time and the 4 cases
+```{r}
+# Vmdata
+VMdata$min <- substr(VMdata$Time, 1, 5)
+VMTime <- select(VMdata, min, HostCPU., Client)
+VMTime <- VMTime %>% group_by(Client, min) %>% 
+  summarize(average = mean(HostCPU.))
+ggplot(data = VMTime, aes(x = min, y = average, color = Client)) + geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(title = "Average Usage per minute of capacity [Virtual Machine]", y = "Average Usage of capacity", x = "Minute")
+# VMDocker
+VMDocker$min <- substr(VMDocker$Time, 1, 5)
+VMDockerTime <- select(VMDocker, min, HostCPU., Client)
+VMDockerTime <- VMDockerTime %>% group_by(Client, min) %>% 
+  summarize(average = mean(HostCPU.))
+ggplot(data = VMDockerTime, aes(x = min, y = average, color = Client)) + geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(title = "Average Usage per minute of capacity [VM Docker]", y = "Average Usage of capacity", x = "Minute")
+# serverdata
+serverdata$min <- substr(serverdata$Time, 1, 5)
+serverdataTime <- select(serverdata, min, HostCPU., Client)
+serverdataTime <- serverdataTime %>% group_by(Client, min) %>% 
+  summarize(average = mean(HostCPU.))
+ggplot(data = serverdataTime, aes(x = min, y = average, color = Client)) + geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(title = "Average Usage per minute of capacity [Native]", y = "Average Usage of capacity", x = "Minute")
+# serverdocker
+serverdocker$min <- substr(serverdocker$Time, 1, 5)
+serverdockerTime <- select(serverdocker, min, HostCPU., Client)
+serverdockerTime <- serverdockerTime %>% group_by(Client, min) %>% 
+  summarize(average = mean(HostCPU.))
+ggplot(data = serverdockerTime, aes(x = min, y = average, color = Client)) + geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + labs(title = "Average Usage per minute of capacity [Container]", y = "Average Usage of capacity", x = "Minute")
+
+```
+# Plot development of HostCPU concerning Clients and the 4 cases
+```{r}
+mt <- ggplot(df, aes(x=Client, y=HostCPU.)) + geom_point(shape=1) + stat_smooth(method = "lm") 
+mt + facet_grid(~case)
+```
+# Plot development of HostCPU, colored by the factor(HostCPU) concerning Clients and the 4 cases
+```{r}
+p <- ggplot(data = df, aes(x = Client,y= HostCPU., colour = factor(HostCPU.))) + geom_point()
+p + facet_grid(~case)
+```
+# Plot development of HostCPU concerning the Clients
+```{r}
+df$HostCPU.1<-as.numeric(df$HostCPU.)
+df$Clients1<-as.numeric(df$Client)
+ggplot(df, aes(Client, HostCPU., col=case, group=1)) + geom_col()+
+ facet_grid(case~., scale='free_y') + geom_step(data=df, aes(Clients1, HostCPU.1)) +
+  scale_color_discrete(breaks=c('psavert','uempmed','unemploy','q')) + labs(title = "Development of Host CPU concerning the Clients and cases")
+```
+# Plot HostMem concerning the Clients and the 4 cases
+```{r}
+df$HostMem.1<-as.numeric(df$HostMem.)
+df$Clients1<-as.numeric(df$Clients)
+ggplot(df, aes(Client, HostMem., col=case, group=1)) + geom_col()+
+ facet_grid(case~., scale='free_y') + geom_step(data=df, aes(Clients1, HostMem.1)) +
+  scale_color_discrete(breaks=c('psavert','uempmed','unemploy','q')) + labs(title = "Development of Host Mem concerning the Clients and cases")
+```
+# Boxplot HostCPU concerning Clients and the 4 cases
+```{r}
+p <- ggplot(data = df, aes(x = Client, y= HostCPU., fill = case)) + geom_boxplot()
+p
+```
+# Plot HostMem. concerning Clients and colored by the 4 cases
+```{r}
+p1 <- ggplot(data = df, aes(x = Client, y= HostMem., colour = factor(case))) + geom_point()
+p1
+```
+# Safe the settings for df
+```{r}
+serverdata$case <- "Native"
+serverdocker$case <- "Container"
+VMdata$case <- "VirtualMachine"
+VMDocker$case <- "Docker"
+
+df <- rbind(serverdata, serverdocker, VMdata, VMDocker)
+```
+# Plot HostCPU concerning Clients and 4 cases
+```{r}
+p1 <- aggregate(HostCPU. ~ Client + case, data = df, FUN = mean)
+ggplot(data = p1, aes(x = Client, y = HostCPU., color = case)) + geom_point() + geom_line() +
+  labs(title = "Usage of CPU in 4 cases", y = "Host CPU") 
+```
+# Plot HostMem concerning Clients and 4 cases
+```{r}
+p2 <- aggregate(HostMem. ~ Client + case, data = df, FUN = mean)
+ggplot(data = p2, aes(Client, HostMem.,color=case)) + geom_line() + geom_point() + 
+  labs(title = "Usage of Memory in 4 cases", y = "Host Memory") + theme(legend.position="none")
+```
+# Plot Bytes Sent concerning Clients and 4 cases
+```{r}
+p3 <- aggregate(Bytes_Sent ~ Client + case, data = df, FUN = mean)
+ggplot(data = p3, aes(Client, Bytes_Sent,color=case)) + geom_line() + geom_point()  + 
+  labs(title = "Bytes sent in 4 cases", y = "Bytes Sent")
+```
+# Plot Bytes Received concerning Clients and 4 cases
+```{r}
+p4 <- aggregate(Bytes_Recv ~ Client + case, data = df, FUN = mean)
+ggplot(data = p4, aes(Client, Bytes_Recv,color=case)) + geom_line() + geom_point() + 
+  labs(title = "Bytes received in 4 cases", y = "Bytes Received")
+```
+# Plot Packets Sent concerning Clients and 4 cases
+```{r}
+p5 <- aggregate(Packets_Sent ~ Client + case, data = df, FUN = mean)
+ggplot(data = p5, aes(Client, Packets_Sent,color=case)) + geom_line() + geom_point() + 
+  labs(title = "Packets sent in 4 cases" , y = " Packets sent ")
+```
+# Plot Packets Received concerning Clients and 4 cases
+```{r}
+p6 <- aggregate(Packets_Recv ~ Client + case, data = df, FUN = mean)
+ggplot(data = p6, aes(Client, Packets_Recv, color=case)) + geom_line() + geom_point() + 
+  labs(title = "Packets received in 4 cases",  y = " Packets received ") 
+```
+# Correlation for Server Data
+```{r}
+# select numerical columns for correlation matrix
+serverdataNumbers <- select(serverdata, HostCPU., HostMem., Bytes_Sent, Bytes_Recv, Packets_Sent, Packets_Recv, Client)
+
+# corrgram
+corrgram(serverdataNumbers)
+
+# Creating a Correlation Matrix of Metric Variables
+cor <- cor(serverdataNumbers, use = "pairwise")
+cor
+
+# corrplot
+corrplot(cor, method = "number")
+```
+# Correlation for Server Docker
+```{r}
+# select numerical columns for correlation matrix
+serverdockerNumbers <- select(serverdocker, HostCPU., HostMem., Bytes_Sent, Bytes_Recv, Packets_Sent, Packets_Recv, Client)
+
+# corrgram
+corrgram(serverdockerNumbers)
+
+# Creating a Correlation Matrix of Metric Variables
+cor <- cor(serverdockerNumbers, use = "pairwise")
+cor
+
+# corrplot
+corrplot(cor, method = "number")
+```
+# Correlation for Virtual Machine
+```{r}
+# select numerical columns for correlation matrix
+VMNumbers <- select(VMdata, HostCPU., HostMem., Bytes_Sent, Bytes_Recv, Packets_Sent, Packets_Recv, Client)
+
+# corrgram
+corrgram(VMNumbers)
+
+# Creating a Correlation Matrix of Metric Variables
+cor <- cor(VMNumbers, use = "pairwise")
+cor
+
+# corrplot
+corrplot(cor, method = "number")
+```
+# Correlation for Virtual Machine Docker
+```{r}
+# select numerical columns for correlation matrix
+VMDockerNumbers <- select(VMDocker, HostCPU., HostMem., Bytes_Sent, Bytes_Recv, Packets_Sent, Packets_Recv, Client)
+
+# corrgram
+corrgram(VMDockerNumbers)
+
+# Creating a Correlation Matrix of Metric Variables
+cor <- cor(VMDockerNumbers, use = "pairwise")
+cor
+
+# corrplot
+corrplot(cor, method = "number")
+```
+# Correlation for binded df
+```{r}
+# select numerical columns for correlation matrix
+dfNumbers <- select(df, HostCPU., HostMem., Bytes_Sent, Bytes_Recv, Packets_Sent, Packets_Recv, Client)
+
+# corrgram
+corrgram(dfNumbers)
+
+# Creating a Correlation Matrix of Metric Variables
+cor <- cor(dfNumbers, use = "pairwise")
+cor
+
+# corrplot
+corrplot(cor, method = "number")
+```
+# Backward elimination for linear regression model
+```{r}
+
+full.model <- lm(Client ~ HostCPU. + HostMem. + Bytes_Sent + Bytes_Recv + Packets_Sent + Packets_Recv, 
+                 data = df)
+# stepwise
+step(object = full.model, # start at the full model
+    direction = "backward") # allow it remove predictors but not add them
+
+# the result of the best regression model it could find:
+lmBackward <- lm(formula = Client ~ HostCPU. + HostMem. + Bytes_Sent + Bytes_Recv + Packets_Sent + Packets_Recv, 
+                data = df)
+summary(lmBackward)
+```
+#Modelling
+```{r}
+df$case <- as.factor(df$case)
+df$Date <- NULL
+df$Time <- NULL
+
+names(df)[1:2] <- c("HostCPU", "HostMem")
+```
+# We model a regression without coefficient in order to get coefficent for all the categories for categorical variable (case).
+# CPU usage
+```{r}
+model_CPU <- lm(HostCPU ~ Client + case -1, data = df)
+#CPU_coef <- summary(model_CPU)$coefficients
+print(summary(model_CPU))
+
+aov_CPU <- aov(HostCPU ~ Client + case -1, data = df)
+summary(aov_CPU)
+TukeyHSD(aov_CPU, which = "case")
+
+# Drop Docker, because p-value is high and therefore it should be exluded from this analysis
+df3case <- rbind(serverdata, serverdocker, VMdata)
+model_CPU2 <- lm(HostCPU. ~ Client + case -1, data = df3case)
+print(summary(model_CPU2))
+```
+# Interpretation
+```{r}
+# The case docker shows a p-value (0.858), which is higher than 0.05. That means if you want to increase the amount of players with a good stability (a valid measure of stability is CPU usage), the case Docker is not a good solution in comparison to the other three cases.
+# If you remove the case Docker, the R-squared increases a bit. That means the "quality" of the model is better. Nevertheless, we want to compare all cases concerning the best case for the maximum number of players.
+```
+# Memory usage
+```{r}
+model_mem <- lm(HostMem ~ Client + case -1, data = df)
+print(summary(model_mem))
+```
+# Plotting the fit
+
+# Bytes_Sent
+```{r}
+model_Bytes_Sent <- lm(Bytes_Sent ~ Client + case -1, data = df)
+print(summary(model_Bytes_Sent))
+```
+# Bytes Received
+```{r}
+model_Bytes_Recv <- lm(Bytes_Recv ~ Client + case -1, data = df)
+print(summary(model_Bytes_Recv))
+```
+# Packets Sent
+```{r}
+model_Packets_Sent <- lm(Packets_Sent ~ Client + case -1, data = df)
+print(summary(model_Packets_Sent))
+```
+# Packets Received
+```{r}
+model_Packets_Recv <- lm(Packets_Recv ~ Client + case -1, data = df)
+print(summary(model_Packets_Recv))
+```
+
+# Export the lm regression models
+```{r}
+# model_CPU
+tidy_model_CPU <- tidy(model_CPU)
+write.csv(tidy_model_CPU, "tidy_model_CPU.csv")
+# Model_MEM
+tidy_model_mem <- tidy(model_mem)
+write.csv(tidy_model_mem, "tidy_model_mem.csv")
+# Model_Bytes_Sent
+tidy_model_Bytes_Sent <- tidy(model_Bytes_Sent)
+write.csv(tidy_model_Bytes_Sent, "tidy_model_Bytes_Sent.csv")
+# Model_Bytes_Recv
+tidy_model_Bytes_Recv <- tidy(model_Bytes_Recv)
+write.csv(tidy_model_Bytes_Recv, "tidy_model_Bytes_Recv.csv")
+# Packets_Sent
+tidy_model_Packets_Sent <- tidy(model_Packets_Sent)
+write.csv(tidy_model_Packets_Sent, "tidy_model_Packets_Sent.csv")
+# Packets_Recv
+tidy_model_Packets_Recv <- tidy(model_Packets_Recv)
+write.csv(tidy_model_Packets_Recv, "tidy_model_Packets_Recv.csv")
+# lmbackward
+tidy_model_backward <- tidy(lmBackward)
+write.csv(tidy_model_backward, "tidy_model_backward.csv")
+```
+# Hypothesis Testing
+# Claim: The mean of Host CPU is significantly higher after 40 clients than under 40 clients
+```{r}
+df$CPUCat <- if_else(df$Client >= 40, "CPU with >= 40 Clients", "CPU with < 40 Clients")
+wilcox.test(df$HostCPU ~ df$CPUCat, mu=0, alt = "less", conf.int = TRUE, conf.level = 0.95, paired = FALSE)
+```
+# Claim: The mean of Host Memory is significantly higher after 40 clients than under 40 clients
+```{r}
+df$MEMCat <- if_else(df$Client >= 40, "MEM with >= 40 Clients", "MEM with < 40 Clients")
+wilcox.test(df$HostMem ~ df$MEMCat, mu=0, alt = "less", conf.int = TRUE, conf.level = 0.95, paired = FALSE)
+```
+# Claim: The mean of Bytes sent is significantly higher after 40 clients than under 40 clients
+```{r}
+df$BytesSentCat <- if_else(df$Client >= 40, "MEM with >= 40 Clients", "MEM with < 40 Clients")
+wilcox.test(df$Bytes_Sent ~ df$BytesSentCat, mu=0, alt = "less", conf.int = TRUE, conf.level = 0.95, paired = FALSE)
+```
+# Claim: The mean of Mem Bytes received is significantly higher after 40 clients than under 40 clients
+```{r}
+df$BytesRecvCat <- if_else(df$Client >= 40, "MEM with >= 40 Clients", "MEM with < 40 Clients")
+wilcox.test(df$Bytes_Recv ~ df$BytesRecvCat, mu=0, alt = "less", conf.int = TRUE, conf.level = 0.95, paired = FALSE)
+```
+# Interpretation
+```{r}
+# As proved with the Wilcox.Test, there is a significantly difference concerning valid measures of stability (e.g. Usage Host CPU or Usage Host MEM) after 40 Clients and before. After 40 Clients the performance decreases.
+```
+# Is there a sig. difference between the averages per minutes (Usage Host CPU) concerning the 4 cases
+```{r}
+serverdataTime$case <- "Native"
+serverdockerTime$case <- "Container"
+VMTime$case <- "VirtualMachine"
+VMDockerTime$case <-"VM Docker"
+# Bind the df
+Time <- rbind(serverdataTime, serverdockerTime, VMDockerTime, VMTime)
+# anova
+aov_Time <- aov(Time$average ~ Client + case + min, data = Time)
+summary(aov_Time)
+```
+# Interpretation
+```{r}
+# The mean averages per minutes are different concerning the different Clients, cases and minutes.
+```
+
